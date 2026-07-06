@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <!-- viewport statico (non iniettato via JS): attivo dal primo paint, no zoom/pinch, copre il notch -->
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+    <title>BossRush</title>
+    <style>
+      html, body {
+        margin: 0; padding: 0;
+        width: 100%; height: 100%;
+        background: #0b0b12;
+        overflow: hidden;
+        overscroll-behavior: none; /* niente pull-to-refresh / bounce */
+      }
+      #unity-container { position: fixed; inset: 0; }
+      /* Il canvas riempie sempre il viewport: il letterboxing lo gestisce il gioco
+         (CameraArenaFramer adatta l'orthographicSize a qualsiasi aspect ratio) */
+      #unity-canvas {
+        width: 100%; height: 100%;
+        display: block;
+        background: #0b0b12;
+        touch-action: none;             /* i tocchi vanno SOLO al gioco: no scroll/zoom browser */
+        -webkit-user-select: none; user-select: none;
+        -webkit-touch-callout: none;    /* no menu long-press su iOS */
+      }
+      /* Loading bar pure-CSS (nessuna immagine TemplateData necessaria) */
+      #unity-loading-bar {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(60vw, 420px);
+        display: none;
+        text-align: center;
+        font-family: system-ui, sans-serif;
+        color: #ddd;
+      }
+      #unity-loading-title { font-size: 20px; letter-spacing: 3px; margin-bottom: 14px; }
+      #unity-progress-bar-empty {
+        width: 100%; height: 10px;
+        border: 1px solid #888; border-radius: 5px;
+        overflow: hidden;
+      }
+      #unity-progress-bar-full {
+        width: 0%; height: 100%;
+        background: #e04840;
+        transition: width .15s;
+      }
+      #unity-warning {
+        position: absolute; left: 50%; top: 5%;
+        transform: translateX(-50%);
+        text-align: center;
+        font-family: system-ui, sans-serif;
+      }
+      /* Overlay "ruota il telefono": solo su device mobile e solo in portrait.
+         Il gioco è progettato landscape (arena 18x10 + HUD touch ai lati). */
+      #rotate-overlay {
+        position: fixed; inset: 0; z-index: 10;
+        display: none;
+        background: #0b0b12; color: #eee;
+        font-family: system-ui, sans-serif;
+        font-size: 22px; line-height: 1.6;
+        text-align: center;
+        padding: 24px;
+      }
+      #rotate-overlay .icon { font-size: 56px; display: block; margin-bottom: 12px; }
+      @media (orientation: portrait) {
+        body.is-mobile #rotate-overlay { display: grid; place-content: center; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-loading-title">BossRush</div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"> </div>
+    </div>
+    <div id="rotate-overlay">
+      <span class="icon">🔄</span>
+      Ruota il telefono in orizzontale<br>per giocare a <b>BossRush</b>
+    </div>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) document.body.classList.add("is-mobile");
+
+      // Banner per warning/errori non critici (contratto richiesto dal loader Unity)
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/WebGL.loader.js";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/WebGL.data.unityweb",
+        frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
+        codeUrl: buildUrl + "/WebGL.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "BossRush",
+        productVersion: "1.0",
+        showBanner: unityShowBanner,
+      };
+
+      if (isMobile) {
+        // Pixel art 2D: render a DPR 1 su mobile = grande guadagno di performance
+        // (1/4-1/9 dei pixel su schermi DPR 2-3) senza perdita visiva percepibile.
+        config.devicePixelRatio = 1;
+      }
+
+      document.querySelector("#unity-loading-bar").style.display = "block";
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+        }).then((unityInstance) => {
+          document.querySelector("#unity-loading-bar").style.display = "none";
+        }).catch((message) => {
+          alert(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
